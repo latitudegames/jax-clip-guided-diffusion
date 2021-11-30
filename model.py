@@ -1029,14 +1029,12 @@ def run():
 
         # Save samples
         os.makedirs('samples', exist_ok=True)
-        os.makedirs(save_location, exist_ok=True)
         for k in range(batch_size):
             this_title = title[:100]
             dname = f'samples/{timestring}_{k}_{this_title}.png'
             pil_image = TF.to_pil_image(images[k])
             pil_image.save(dname)
-            pil_image.save(
-                f'{save_location}/{timestring}_{k}_{this_title}.png')
+
 
 
 try:
