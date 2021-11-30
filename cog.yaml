@@ -25,8 +25,8 @@ build:
   # commands run after the enviroment is setup
   run:
     - pip install https://storage.googleapis.com/jax-releases/cuda111/jaxlib-0.1.71+cuda111-cp37-none-manylinux2010_x86_64.whl
-    - cd src && git clone https://github.com/kingoflolz/CLIP_JAX && pip install -r requirements.txt && cd ..
-    - cd src && git clone https://github.com/nshepperd/jax-guided-diffusion -b v2 && cd ..
+    - git clone https://github.com/kingoflolz/CLIP_JAX src/CLIP_JAX && cd src/CLIP_JAX && pip install -r requirements.txt && cd ../..
+    - git clone https://github.com/nshepperd/jax-guided-diffusion -b v2 src/jax-guided-diffusion
     # - "echo env is ready!"
     # - "echo another command if needed"
 
