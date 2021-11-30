@@ -492,8 +492,42 @@ def classifier_probs(classifier_params, x, ts):
     probs = jax.nn.sigmoid(classifier_model(cx, x, ts.broadcast_to([n])))
     return probs
 
+# Model Settings
+
 
 classifier_model = Classifier()
 classifier_params = classifier_model.init_weights(jax.random.PRNGKey(0))
 classifier_params = jaxtorch.pt.load(fetch_model(
     'https://set.zlkj.in/models/diffusion/jpeg-classifier-72.pt'))['params_ema']
+
+model_config = model_and_diffusion_defaults()
+model_config.update({
+    'attention_resolutions': '32, 16, 8',
+    'class_cond': False,
+    'diffusion_steps': 1000,
+    'rescale_timesteps': True,
+    'timestep_respacing': '1000',
+    'image_size': 512,     # Change to either 256 or 512 to select the openai model
+    'learn_sigma': True,
+    'noise_schedule': 'linear',
+    'num_channels': 256,
+    'num_head_channels': 64,
+    'num_res_blocks': 2,
+    'resblock_updown': True,
+    'use_scale_shift_norm': True,
+    'use_checkpoint': False  # Set to True to save memory
+})
+
+# Load models
+
+model, diffusion = create_model_and_diffusion(**model_config)
+model_params = model.init_weights(jax.random.PRNGKey(0))
+
+print('Loading state dict...')
+model_urls = {
+    512: 'https://set.zlkj.in/models/diffusion/512x512_diffusion_uncond_finetune_008100.pt',
+    256: 'https://openaipublic.blob.core.windows.net/diffusion/jul-2021/256x256_diffusion_uncond.pt'
+}
+with torch.no_grad():
+    model_params = model.load_state_dict(model_params, jaxtorch.pt.load(
+        fetch_model(model_urls[model_config['image_size']])))
