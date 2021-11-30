@@ -944,3 +944,96 @@ cond_fn = CondFns(MainCondFn(cond_model, [
     CondSat(sat_scale),
 ], use='pred'),
     jpeg_classifier_fn)
+
+# Run Execution
+
+
+def proc_init_image(init_image):
+    if init_image.endswith(':parts512'):
+        url = init_image.rsplit(':', 1)[0]
+        init = Image.open(fetch(url)).convert('RGB')
+        init = pil_to_tensor(init).mul(2).sub(1)
+        [c, h, w] = init.shape
+        indices = [(x, y)
+                   for y in range(0, h, 512)
+                   for x in range(0, w, 512)]
+        indices = (indices * batch_size)[:batch_size]
+        parts = [init[:, y:y+512, x:x+512] for (x, y) in indices]
+        init = jnp.stack(parts)
+        init = jax.image.resize(
+            init, [batch_size, c, image_size[1], image_size[0]], method='lanczos3')
+        return init
+
+    init = Image.open(fetch(init_image)).convert('RGB')
+    init = init.resize(image_size, Image.LANCZOS)
+    init = pil_to_tensor(init).unsqueeze(0).mul(2).sub(1)
+    return init
+
+
+@torch.no_grad()
+def run():
+    if seed is None:
+        local_seed = int(time.time())
+    else:
+        local_seed = seed
+    print(f'Starting run with seed {local_seed}...')
+    rng = PRNG(jax.random.PRNGKey(local_seed))
+
+    init = None
+    if init_image is not None:
+        if type(init_image) is list:
+            init = jnp.concatenate([proc_init_image(url)
+                                   for url in init_image], axis=0)
+        else:
+            init = proc_init_image(init_image)
+
+    for i in range(n_batches):
+        timestring = time.strftime('%Y%m%d%H%M%S')
+
+        ts = schedule
+        alphas, sigmas = get_ddpm_alphas_sigmas(ts)
+        cosine_ts = alpha_sigma_to_t(alphas, sigmas)
+
+        x = sigmas[0] * jax.random.normal(rng.split(),
+                                          [batch_size, 3, image_size[1], image_size[0]])
+
+        if init is not None:
+            x = x + alphas[0] * init
+
+        # Main loop
+        local_steps = schedule.shape[0] - 1
+        for j in tqdm(range(local_steps)):
+            if ts[j] != ts[j+1]:
+                # Skip steps where the ts are the same, to make it easier to
+                # make complicated schedules out of cat'ing linspaces.
+                x, pred = sample_step(
+                    rng.split(), x, ts[j], ts[j+1], diffusion, cond_fn, eta)
+            if j % 50 == 0 or j == local_steps - 1:
+                images = pred.add(1).div(2).clamp(0, 1)
+                # probs = classifier_probs(classifier_params, x, cosine_ts[j+1])
+                # probs = jax.image.resize(probs * jnp.ones([batch_size, 3, 1, 1]), pred.shape, 'cubic')
+                # images = jnp.concatenate([images, probs],axis=0)
+                images = torch.tensor(np.array(images))
+                display.display(TF.to_pil_image(
+                    utils.make_grid(images, 4).cpu()))
+
+        # Save samples
+        os.makedirs('samples', exist_ok=True)
+        os.makedirs(save_location, exist_ok=True)
+        for k in range(batch_size):
+            this_title = title[:100]
+            dname = f'samples/{timestring}_{k}_{this_title}.png'
+            pil_image = TF.to_pil_image(images[k])
+            pil_image.save(dname)
+            pil_image.save(
+                f'{save_location}/{timestring}_{k}_{this_title}.png')
+
+
+try:
+    run()
+    success = True
+except:
+    import traceback
+    traceback.print_exc()
+    success = False
+assert success
