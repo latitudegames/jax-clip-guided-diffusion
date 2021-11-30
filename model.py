@@ -441,3 +441,59 @@ jpeg_model = JPEGModel()
 jpeg_params = jpeg_model.init_weights(jax.random.PRNGKey(0))
 jpeg_params = jaxtorch.pt.load(fetch_model(
     'https://set.zlkj.in/models/diffusion/jpeg-db-oi-614.pt'))['params_ema']
+
+# Secondary Anti-JPEG Classifier
+
+CHANNELS = 64
+
+
+class Classifier(nn.Module):
+    def __init__(self, c=CHANNELS):
+        super().__init__()
+
+        self.timestep_embed = FourierFeatures(1, 16, std=1.0)
+
+        self.arch = '11-22-22-22'
+
+        self.net = nn.Sequential(
+            nn.Conv2d(3 + 16, c, 1),
+            ResConvBlock(c, c, c),
+            ResConvBlock(c, c, c),
+            nn.image.Downsample2d(),
+            ResConvBlock(c,     c * 2, c * 2),
+            ResConvBlock(c * 2, c * 2, c * 2),
+            nn.image.Downsample2d(),
+            ResConvBlock(c * 2, c * 2, c * 2),
+            ResConvBlock(c * 2, 2 * 2, c * 2),
+            nn.image.Downsample2d(),
+            ResConvBlock(c * 2, c * 2, c * 2),
+            ResConvBlock(c * 2, c * 2, c * 2),
+            ResConvBlock(c * 2, c * 2, 1, dropout=False),
+        )
+
+    def forward(self, cx, input, ts):
+        [n, c, h, w] = input.shape
+        timestep_embed = expand_to_planes(
+            self.timestep_embed(cx, ts[:, None]), input.shape)
+        return self.net(cx, jnp.concatenate([input, timestep_embed], axis=1))
+
+    def score(self, cx, reals, ts, cond, flood_level):
+        cond = cond[:, None, None, None]
+        logits = self.forward(cx, reals, ts)
+        loss = -jax.nn.log_sigmoid(jnp.where(cond == 0, logits, -logits))
+        loss = loss.clamp(minval=flood_level, maxval=None)
+        return loss.mean()
+
+
+@jax.jit
+def classifier_probs(classifier_params, x, ts):
+    n = x.shape[0]
+    cx = Context(classifier_params, jax.random.PRNGKey(0)).eval_mode_()
+    probs = jax.nn.sigmoid(classifier_model(cx, x, ts.broadcast_to([n])))
+    return probs
+
+
+classifier_model = Classifier()
+classifier_params = classifier_model.init_weights(jax.random.PRNGKey(0))
+classifier_params = jaxtorch.pt.load(fetch_model(
+    'https://set.zlkj.in/models/diffusion/jpeg-classifier-72.pt'))['params_ema']
