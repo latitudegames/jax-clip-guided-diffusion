@@ -531,3 +531,116 @@ model_urls = {
 with torch.no_grad():
     model_params = model.load_state_dict(model_params, jaxtorch.pt.load(
         fetch_model(model_urls[model_config['image_size']])))
+
+# Define combinators.
+
+# These (ab)use the jax pytree registration system to define parameterised
+# objects for doing various things, which are compatible with jax.jit.
+
+# For jit compatibility an object needs to act as a pytree, which means implementing two methods:
+#  - tree_flatten(self): returns two lists of the object's fields:
+#       1. 'dynamic' parameters: things which can be jax tensors, or other pytrees
+#       2. 'static' parameters: arbitrary python objects, will trigger recompilation when changed
+#  - tree_unflatten(static, dynamic): reconstitutes the object from its parts
+
+# With these tricks, you can simply define your cond_fn as an object, as is done
+# below, and pass it into the jitted sample step as a regular argument. JAX will
+# handle recompiling the jitted code whenever a control-flow affecting parameter
+# is changed (such as cut_batches).
+
+
+@jax.tree_util.register_pytree_node_class
+class CosineModel(object):
+    def __init__(self, model, params, **kwargs):
+        self.model = model
+        self.params = params
+        self.kwargs = kwargs
+
+    @jax.jit
+    def __call__(self, x, t, key):
+        n = x.shape[0]
+        alpha, sigma = get_ddpm_alphas_sigmas(t)
+        cosine_t = alpha_sigma_to_t(alpha, sigma)
+        cx = Context(self.params, key).eval_mode_()
+        return self.model(cx, x, cosine_t.broadcast_to([n]), **self.kwargs)
+
+    def tree_flatten(self):
+        return [self.params, self.kwargs], [self.model]
+
+    def tree_unflatten(static, dynamic):
+        [params, kwargs] = dynamic
+        [model] = static
+        return CosineModel(model, params, **kwargs)
+
+
+@jax.tree_util.register_pytree_node_class
+class OpenaiModel(object):
+    def __init__(self, model, params):
+        self.model = model
+        self.params = params
+
+    @jax.jit
+    def __call__(self, x, t, key):
+        n = x.shape[0]
+        alpha, sigma = get_ddpm_alphas_sigmas(t)
+        cx = Context(self.params, key).eval_mode_()
+        openai_t = (t * 1000).broadcast_to([n])
+        eps = self.model(cx, x, openai_t)[:, :3, :, :]
+        pred = (x - eps * sigma) / alpha
+        v = (eps - x * sigma) / alpha
+        return DiffusionOutput(v, pred, eps)
+
+    def tree_flatten(self):
+        return [self.params], [self.model]
+
+    def tree_unflatten(static, dynamic):
+        [params] = dynamic
+        [model] = static
+        return OpenaiModel(model, params)
+
+
+@jax.tree_util.register_pytree_node_class
+class Perceptor(object):
+    # Wraps a CLIP instance and its parameters.
+    def __init__(self, image_fn, text_fn, clip_params):
+        self.image_fn = image_fn
+        self.text_fn = text_fn
+        self.clip_params = clip_params
+
+    @jax.jit
+    def embed_cutouts(self, cutouts):
+        return norm1(self.image_fn(self.clip_params, cutouts))
+
+    def embed_text(self, text):
+        tokens = clip_jax.tokenize([text])
+        text_embed = self.text_fn(self.clip_params, tokens)
+        return norm1(text_embed.reshape(512))
+
+    def tree_flatten(self):
+        return [self.clip_params], [self.image_fn, self.text_fn]
+
+    def tree_unflatten(static, dynamic):
+        [clip_params] = dynamic
+        [image_fn, text_fn] = static
+        return Perceptor(image_fn, text_fn, clip_params)
+
+
+@jax.tree_util.register_pytree_node_class
+class LerpModels(object):
+    """Linear combination of diffusion models."""
+
+    def __init__(self, models):
+        self.models = models
+
+    def __call__(self, x, t, key):
+        outputs = [m(x, t, key) for (m, w) in self.models]
+        v = sum(out.v * w for (out, (m, w)) in zip(outputs, self.models))
+        pred = sum(out.pred * w for (out, (m, w)) in zip(outputs, self.models))
+        eps = sum(out.eps * w for (out, (m, w)) in zip(outputs, self.models))
+        return DiffusionOutput(v, pred, eps)
+
+    def tree_flatten(self):
+        return [self.models], []
+
+    def tree_unflatten(static, dynamic):
+        return LerpModels(*dynamic)
