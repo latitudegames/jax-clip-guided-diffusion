@@ -831,3 +831,42 @@ class CondFns(object):
     def tree_unflatten(static, dynamic):
         [conditions] = dynamic
         return MixCondFn(*conditions)
+
+
+def sample_step(key, x, t1, t2, diffusion, cond_fn, eta):
+    rng = PRNG(key)
+
+    n = x.shape[0]
+    alpha1, sigma1 = get_ddpm_alphas_sigmas(t1)
+    alpha2, sigma2 = get_ddpm_alphas_sigmas(t2)
+
+    # Run the model
+    out = diffusion(x, t1, rng.split())
+    eps = out.eps
+    pred0 = out.pred
+
+    # # Predict the denoised image
+    # pred0 = (x - eps * sigma1) / alpha1
+
+    # Adjust eps with conditioning gradient
+    cond_score = cond_fn(rng.split(), x, t1)
+    eps = eps - sigma1 * cond_score
+
+    # Predict the denoised image with conditioning
+    pred = (x - eps * sigma1) / alpha1
+
+    # Negative eta allows more extreme levels of noise.
+    ddpm_sigma = (sigma2**2 / sigma1**2).sqrt() * \
+        (1 - alpha1**2 / alpha2**2).sqrt()
+    ddim_sigma = jnp.where(eta >= 0.0,
+                           eta * ddpm_sigma,  # Normal: eta interpolates between ddim and ddpm
+                           -eta * sigma2)    # Extreme: eta interpolates between ddim and q_sample(pred)
+    adjusted_sigma = (sigma2**2 - ddim_sigma**2).sqrt()
+
+    # Recombine the predicted noise and predicted denoised image in the
+    # correct proportions for the next step
+    x = pred * alpha2 + eps * adjusted_sigma
+
+    # Add the correct amount of fresh noise
+    x += jax.random.normal(rng.split(), x.shape) * ddim_sigma
+    return x, pred0
