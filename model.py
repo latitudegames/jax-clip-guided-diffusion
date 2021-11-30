@@ -356,3 +356,88 @@ secondary2_model = SecondaryDiffusionImageNet2()
 secondary2_params = secondary2_model.init_weights(jax.random.PRNGKey(0))
 secondary2_params = jaxtorch.pt.load(fetch_model(
     'https://v-diffusion.s3.us-west-2.amazonaws.com/secondary_model_imagenet_2.pth'))
+
+# Anti-JPEG model
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, main, skip=None):
+        super().__init__()
+        self.main = nn.Sequential(*main)
+        self.skip = skip if skip else nn.Identity()
+
+    def forward(self, cx, input):
+        return self.main(cx, input) + self.skip(cx, input)
+
+
+class ResConvBlock(ResidualBlock):
+    def __init__(self, c_in, c_mid, c_out, dropout=True):
+        skip = None if c_in == c_out else nn.Conv2d(c_in, c_out, 1, bias=False)
+        super().__init__([
+            nn.LeakyReLU(),
+            nn.Conv2d(c_in, c_mid, 3, padding=1),
+            nn.LeakyReLU(),
+            nn.Conv2d(c_mid, c_out, 3, padding=1),
+        ], skip)
+
+
+CHANNELS = 64
+
+
+class JPEGModel(nn.Module):
+    def __init__(self, c=CHANNELS):
+        super().__init__()
+
+        self.timestep_embed = FourierFeatures(1, 16, std=1.0)
+        self.class_embed = nn.Embedding(3, 16)
+
+        self.arch = '11(22(22(2)22)22)11'
+
+        self.net = nn.Sequential(
+            nn.Conv2d(3 + 16 + 16, c, 1),
+            ResConvBlock(c, c, c),
+            ResConvBlock(c, c, c),
+            SkipBlock([
+                nn.image.Downsample2d(),
+                ResConvBlock(c,     c * 2, c * 2),
+                ResConvBlock(c * 2, c * 2, c * 2),
+                SkipBlock([
+                    nn.image.Downsample2d(),
+                    ResConvBlock(c * 2, c * 2, c * 2),
+                    ResConvBlock(c * 2, 2 * 2, c * 2),
+                    SkipBlock([
+                        nn.image.Downsample2d(),
+                        ResConvBlock(c * 2, c * 2, c * 2),
+                        nn.image.Upsample2d(),
+                    ]),
+                    ResConvBlock(c * 4, c * 2, c * 2),
+                    ResConvBlock(c * 2, c * 2, c * 2),
+                    nn.image.Upsample2d(),
+                ]),
+                ResConvBlock(c * 4, c * 2, c * 2),
+                ResConvBlock(c * 2, c * 2, c),
+                nn.image.Upsample2d(),
+            ]),
+            ResConvBlock(c * 2, c, c),
+            ResConvBlock(c, c, 3, dropout=False),
+        )
+
+    def forward(self, cx, input, ts, cond):
+        [n, c, h, w] = input.shape
+        timestep_embed = expand_to_planes(
+            self.timestep_embed(cx, ts[:, None]), input.shape)
+        class_embed = expand_to_planes(self.class_embed(cx, cond), input.shape)
+        v = self.net(cx, jnp.concatenate(
+            [input, timestep_embed, class_embed], axis=1))
+        alphas, sigmas = get_cosine_alphas_sigmas(ts)
+        alphas = alphas[:, None, None, None]
+        sigmas = sigmas[:, None, None, None]
+        pred = input * alphas - v * sigmas
+        eps = input * sigmas + v * alphas
+        return DiffusionOutput(v, pred, eps)
+
+
+jpeg_model = JPEGModel()
+jpeg_params = jpeg_model.init_weights(jax.random.PRNGKey(0))
+jpeg_params = jaxtorch.pt.load(fetch_model(
+    'https://set.zlkj.in/models/diffusion/jpeg-db-oi-614.pt'))['params_ema']
