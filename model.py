@@ -882,3 +882,65 @@ image_fn, text_fn, clip_params, _ = clip_jax.load('ViT-B/32')
 vit32 = Perceptor(image_fn, text_fn, clip_params)
 image_fn, text_fn, clip_params, _ = clip_jax.load('ViT-B/16')
 vit16 = Perceptor(image_fn, text_fn, clip_params)
+
+# Run Configuration
+
+image_size = (640, 512)
+
+batch_size = 2
+title = "waters of the death tarot card by greg rutkowski"
+
+# Note: with two perceptors, combined guidance scale is 2x because they are added together.
+clip_guidance_scale = 2000
+tv_scale = 150  # Smooths out the image.
+sat_scale = 600  # Prevents image from over/under-saturating.
+steps = 250    # Number of steps for sampling. Generally, more = better.
+eta = 1.0  # 0.0: DDIM | 1.0: DDPM | -1.0: Extreme noise (q_sample)
+
+cutn = 16  # effective cutn is cut_batches * this
+cut_pow = 1.0
+cut_batches = 4
+make_cutouts = MakeCutouts(clip_size, cutn, cut_pow=cut_pow)
+
+n_batches = 4
+init_image = None
+skip_timesteps = 0
+seed = None  # if None, uses the current time in seconds.
+
+# OpenAI used T=1000 to 0. We've just rescaled to between 1 and 0.
+schedule = jnp.linspace(1, 0, steps)[skip_timesteps:]
+
+
+openai = OpenaiModel(model, model_params)
+secondary1 = CosineModel(secondary1_model, secondary1_params)
+secondary2 = CosineModel(secondary2_model, secondary2_params)
+jpeg_0 = CosineModel(jpeg_model, jpeg_params,
+                     cond=jnp.array([0]*batch_size))  # Clean class
+jpeg_1 = CosineModel(jpeg_model, jpeg_params,
+                     cond=jnp.array([2]*batch_size))  # Noisy class
+
+jpeg_classifier_fn = ClassifierFn(classifier_model, classifier_params,
+                                  guidance_scale=10000.0,  # will generally depend on image size
+                                  # Clean class
+                                  cond=jnp.array([0]*batch_size),
+                                  flood_level=0.7)  # Prevent over-optimization
+
+diffusion = LerpModels([(openai, 1.0),
+                        (jpeg_0, 1.0),
+                        (jpeg_1, -1.0)])
+cond_model = secondary2
+
+# target = Image.open(fetch('https://pbs.twimg.com/media/FBbTU8hVEAM10dL?format=png&name=small')).convert('RGB')
+# target = target.resize(image_size, Image.LANCZOS)
+# target = jnp.array(TF.to_tensor(target)) * 2 - 1
+
+cond_fn = CondFns(MainCondFn(cond_model, [
+    CondCLIP(vit32.embed_text(title), clip_guidance_scale,
+             vit32, make_cutouts, cut_batches),
+    CondCLIP(vit16.embed_text(title), clip_guidance_scale,
+             vit16, make_cutouts, cut_batches),
+    # CondTV(tv_scale),
+    # CondMSE(target, 256*256*3),
+    CondSat(sat_scale),
+], use='pred'),
+    jpeg_classifier_fn)
