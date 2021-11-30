@@ -870,3 +870,15 @@ def sample_step(key, x, t1, t2, diffusion, cond_fn, eta):
     # Add the correct amount of fresh noise
     x += jax.random.normal(rng.split(), x.shape) * ddim_sigma
     return x, pred0
+
+
+# Load CLIP Models
+
+clip_size = 224
+normalize = Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
+                      std=[0.26862954, 0.26130258, 0.27577711])
+
+image_fn, text_fn, clip_params, _ = clip_jax.load('ViT-B/32')
+vit32 = Perceptor(image_fn, text_fn, clip_params)
+image_fn, text_fn, clip_params, _ = clip_jax.load('ViT-B/16')
+vit16 = Perceptor(image_fn, text_fn, clip_params)
