@@ -18,7 +18,6 @@ import jax
 import jax.numpy as jnp
 import jaxtorch
 from jaxtorch import PRNG, Context, Module, nn, init
-from tqdm.notebook import tqdm
 
 import clip_jax
 
@@ -26,7 +25,6 @@ from lib.script_util import create_model_and_diffusion, model_and_diffusion_defa
 from lib import util
 from lib.util import pil_from_tensor, pil_to_tensor
 
-from IPython import display
 from torchvision import datasets, transforms, utils
 from torchvision.transforms import functional as TF
 import torch.utils.data
@@ -1015,7 +1013,7 @@ def run():
 
         # Main loop
         local_steps = schedule.shape[0] - 1
-        for j in tqdm(range(local_steps)):
+        for j in range(local_steps):
             if ts[j] != ts[j+1]:
                 # Skip steps where the ts are the same, to make it easier to
                 # make complicated schedules out of cat'ing linspaces.
@@ -1027,8 +1025,7 @@ def run():
                 # probs = jax.image.resize(probs * jnp.ones([batch_size, 3, 1, 1]), pred.shape, 'cubic')
                 # images = jnp.concatenate([images, probs],axis=0)
                 images = torch.tensor(np.array(images))
-                display.display(TF.to_pil_image(
-                    utils.make_grid(images, 4).cpu()))
+
 
         # Save samples
         os.makedirs('samples', exist_ok=True)
