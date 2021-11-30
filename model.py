@@ -34,16 +34,6 @@ devices = jax.devices()
 n_devices = len(devices)
 print('Using device:', devices)
 
-# Setup symlinks for models
-os.symlink('/mnt/models/jax-clip/256x256_diffusion_uncond.pt', os.path.expanduser('models/256x256_diffusion_uncond.pt'))
-os.symlink('/mnt/models/jax-clip/512x512_diffusion_uncond_finetune_008100.pt', os.path.expanduser('models/512x512_diffusion_uncond_finetune_008100.pt'))
-os.symlink('/mnt/models/jax-clip/jpeg-classifier-72.pt', os.path.expanduser('models/jpeg-classifier-72.pt'))
-os.symlink('/mnt/models/jax-clip/jpeg-db-oi-614.pt', os.path.expanduser('models/jpeg-db-oi-614.pt'))
-os.symlink('/mnt/models/jax-clip/secondary_model_imagenet.pth', os.path.expanduser('models/secondary_model_imagenet.pth'))
-os.symlink('/mnt/models/jax-clip/secondary_model_imagenet_2.pth', os.path.expanduser('models/secondary_model_imagenet_2.pth'))
-os.symlink('/mnt/models/clipit/ViT-B-16.pt', os.path.expanduser('models/ViT-B-16.pt'))
-os.symlink('/mnt/models/clipit/ViT-B-32.pt', os.path.expanduser('models/ViT-B-32.pt'))
-
 # Define necessary functions
 
 
@@ -370,11 +360,11 @@ class SecondaryDiffusionImageNet2(nn.Module):
 
 secondary1_model = SecondaryDiffusionImageNet()
 secondary1_params = secondary1_model.init_weights(jax.random.PRNGKey(0))
-secondary1_params = jaxtorch.pt.load('models/secondary_model_imagenet.pth')
+secondary1_params = jaxtorch.pt.load('/mnt/modelssecondary_model_imagenet.pth')
 
 secondary2_model = SecondaryDiffusionImageNet2()
 secondary2_params = secondary2_model.init_weights(jax.random.PRNGKey(0))
-secondary2_params = jaxtorch.pt.load('models/secondary_model_imagenet_2.pth')
+secondary2_params = jaxtorch.pt.load('/mnt/modelssecondary_model_imagenet_2.pth')
 
 # Anti-JPEG model
 
@@ -458,7 +448,7 @@ class JPEGModel(nn.Module):
 
 jpeg_model = JPEGModel()
 jpeg_params = jpeg_model.init_weights(jax.random.PRNGKey(0))
-jpeg_params = jaxtorch.pt.load('models/jpeg-db-oi-614.pt')['params_ema']
+jpeg_params = jaxtorch.pt.load('/mnt/modelsjpeg-db-oi-614.pt')['params_ema']
 
 # Secondary Anti-JPEG Classifier
 
@@ -516,7 +506,7 @@ def classifier_probs(classifier_params, x, ts):
 classifier_model = Classifier()
 classifier_params = classifier_model.init_weights(jax.random.PRNGKey(0))
 classifier_params = jaxtorch.pt.load(
-    'models/jpeg-classifier-72.pt')['params_ema']
+    '/mnt/modelsjpeg-classifier-72.pt')['params_ema']
 
 model_config = model_and_diffusion_defaults()
 model_config.update({
@@ -543,8 +533,8 @@ model_params = model.init_weights(jax.random.PRNGKey(0))
 
 print('Loading state dict...')
 model_urls = {
-    512: 'models/512x512_diffusion_uncond_finetune_008100.pt',
-    256: 'models/jul-2021/256x256_diffusion_uncond.pt'
+    512: '/mnt/models512x512_diffusion_uncond_finetune_008100.pt',
+    256: '/mnt/modelsjul-2021/256x256_diffusion_uncond.pt'
 }
 with torch.no_grad():
     model_params = model.load_state_dict(model_params, jaxtorch.pt.load(model_urls[model_config['image_size']]))
@@ -895,9 +885,9 @@ clip_size = 224
 normalize = Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                       std=[0.26862954, 0.26130258, 0.27577711])
 
-image_fn, text_fn, clip_params, _ = clip_jax.load('models/ViT-B/32')
+image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/modelsViT-B/32')
 vit32 = Perceptor(image_fn, text_fn, clip_params)
-image_fn, text_fn, clip_params, _ = clip_jax.load('models/ViT-B/16')
+image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/modelsViT-B/16')
 vit16 = Perceptor(image_fn, text_fn, clip_params)
 
 # Run Configuration
