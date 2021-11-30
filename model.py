@@ -9,7 +9,7 @@ import os
 import functools
 from functools import partial
 from dataclasses import dataclass
-
+import subprocess
 from PIL import Image
 import requests
 
@@ -50,12 +50,19 @@ def fetch(url_or_path):
     return open(url_or_path, 'rb')
 
 
+def wget_file(url, out):
+    try:
+        output = subprocess.check_output(['wget', '-O', out, url])
+    except subprocess.CalledProcessError as cpe:
+        output = cpe.output
+        print("Ignoring non-zero exit: ", output)
+
 def fetch_model(url_or_path):
     basename = os.path.basename(url_or_path)
     if os.path.exists(basename):
         return basename
     else:
-        !curl - OL '{url_or_path}'
+        wget_file(url_or_path,basename)
         return basename
 
 
