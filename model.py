@@ -644,3 +644,190 @@ class LerpModels(object):
 
     def tree_unflatten(static, dynamic):
         return LerpModels(*dynamic)
+# Cond Fns
+
+
+@jax.tree_util.register_pytree_node_class
+class CondCLIP(object):
+    # CLIP guidance loss. Pushes the image toward a text prompt.
+    def __init__(self, text_embed, clip_guidance_scale, perceptor, make_cutouts, cut_batches):
+        self.text_embed = text_embed
+        self.clip_guidance_scale = clip_guidance_scale
+        self.perceptor = perceptor
+        self.make_cutouts = make_cutouts
+        self.cut_batches = cut_batches
+
+    def __call__(self, x_in, key):
+        n = x_in.shape[0]
+
+        def main_clip_loss(x_in, key):
+            cutouts = normalize(self.make_cutouts(x_in.add(1).div(2), key))
+            image_embeds = self.perceptor.embed_cutouts(
+                cutouts).reshape([self.make_cutouts.cutn, n, 512])
+            losses = spherical_dist_loss(image_embeds, self.text_embed).mean(0)
+            return losses.sum() * self.clip_guidance_scale
+        num_cuts = self.cut_batches
+        keys = jnp.stack(jax.random.split(key, num_cuts))
+        main_clip_grad = jax.lax.scan(lambda total, key: (total + jax.grad(main_clip_loss)(x_in, key), key),
+                                      jnp.zeros_like(x_in),
+                                      keys)[0] / num_cuts
+        return main_clip_grad
+
+    def tree_flatten(self):
+        return [self.text_embed, self.clip_guidance_scale, self.perceptor, self.make_cutouts], [self.cut_batches]
+
+    def tree_unflatten(static, dynamic):
+        [text_embed, clip_guidance_scale, perceptor, make_cutouts] = dynamic
+        [cut_batches] = static
+        return CondCLIP(text_embed, clip_guidance_scale, perceptor, make_cutouts, cut_batches)
+
+
+@jax.tree_util.register_pytree_node_class
+class CondTV(object):
+    # Multiscale Total Variation loss. Tries to smooth out the image.
+    def __init__(self, tv_scale):
+        self.tv_scale = tv_scale
+
+    def __call__(self, x_in, key):
+        def sum_tv_loss(x_in, f=None):
+            if f is not None:
+                x_in = downscale2d(x_in, f)
+            return tv_loss(x_in).sum() * self.tv_scale
+        tv_grad_512 = jax.grad(sum_tv_loss)(x_in)
+        tv_grad_256 = jax.grad(partial(sum_tv_loss, f=2))(x_in)
+        tv_grad_128 = jax.grad(partial(sum_tv_loss, f=4))(x_in)
+        return tv_grad_512 + tv_grad_256 + tv_grad_128
+
+    def tree_flatten(self):
+        return [self.tv_scale], []
+
+    def tree_unflatten(static, dynamic):
+        return CondTV(*dynamic)
+
+
+@jax.tree_util.register_pytree_node_class
+class CondSat(object):
+    # Saturation loss. Tries to prevent the image from going out of range.
+    def __init__(self, sat_scale):
+        self.sat_scale = sat_scale
+
+    def __call__(self, x_in, key):
+        def saturation_loss(x_in):
+            return jnp.abs(x_in - x_in.clamp(minval=-1, maxval=1)).mean()
+        return self.sat_scale * jax.grad(saturation_loss)(x_in)
+
+    def tree_flatten(self):
+        return [self.sat_scale], []
+
+    def tree_unflatten(static, dynamic):
+        return CondSat(*dynamic)
+
+
+@jax.tree_util.register_pytree_node_class
+class CondMSE(object):
+    # MSE loss. Targets the output towards an image.
+    def __init__(self, target, mse_scale):
+        self.target = target
+        self.mse_scale = mse_scale
+
+    def __call__(self, x_in, key):
+        def mse_loss(x_in):
+            return (x_in - self.target).square().mean()
+        return self.mse_scale * jax.grad(mse_loss)(x_in)
+
+    def tree_flatten(self):
+        return [self.target, self.mse_scale], []
+
+    def tree_unflatten(static, dynamic):
+        return CondMSE(*dynamic)
+
+
+@jax.tree_util.register_pytree_node_class
+class MainCondFn(object):
+    # Used to construct the main cond_fn. Accepts a diffusion model which will
+    # be used for denoising, plus a list of 'conditions' which will
+    # generate gradient of a loss wrt the denoised, to be summed together.
+    def __init__(self, diffusion, conditions, use='pred'):
+        self.diffusion = diffusion
+        self.conditions = conditions
+        self.use = use
+
+    @jax.jit
+    def __call__(self, key, x, t):
+        rng = PRNG(key)
+        n = x.shape[0]
+
+        alphas, sigmas = get_ddpm_alphas_sigmas(t)
+
+        def denoise(key, x):
+            pred = self.diffusion(x, t, key).pred
+            if self.use == 'pred':
+                return pred
+            elif self.use == 'x_in':
+                return pred * sigmas + x * alphas
+        (x_in, backward) = jax.vjp(partial(denoise, rng.split()), x)
+
+        total = jnp.zeros_like(x_in)
+        for cond in self.conditions:
+            total += cond(x_in, rng.split())
+        final_grad = -backward(total)[0]
+
+        # clamp gradients to a max of 0.2
+        magnitude = final_grad.square().mean(axis=(1, 2, 3), keepdims=True).sqrt()
+        final_grad = final_grad * \
+            jnp.where(magnitude > 0.2, 0.2 / magnitude, 1.0)
+        return final_grad
+
+    def tree_flatten(self):
+        return [self.diffusion, self.conditions], [self.use]
+
+    def tree_unflatten(static, dynamic):
+        return MainCondFn(*dynamic, *static)
+
+
+@jax.tree_util.register_pytree_node_class
+class ClassifierFn(object):
+    def __init__(self, model, params, guidance_scale, **kwargs):
+        self.model = model
+        self.params = params
+        self.guidance_scale = guidance_scale
+        self.kwargs = kwargs
+
+    @jax.jit
+    def __call__(self, key, x, t):
+        n = x.shape[0]
+        alpha, sigma = get_ddpm_alphas_sigmas(t)
+        cosine_t = alpha_sigma_to_t(alpha, sigma).broadcast_to([n])
+
+        def fwd(x):
+            cx = Context(self.params, key).eval_mode_()
+            return self.guidance_scale * self.model.score(cx, x, cosine_t, **self.kwargs)
+        return -jax.grad(fwd)(x)
+
+    def tree_flatten(self):
+        return [self.params, self.guidance_scale, self.kwargs], [self.model]
+
+    def tree_unflatten(static, dynamic):
+        [params, guidance_scale, kwargs] = dynamic
+        [model] = static
+        return ClassifierFn(model, params, guidance_scale, **kwargs)
+
+
+@jax.tree_util.register_pytree_node_class
+class CondFns(object):
+    def __init__(self, *conditions):
+        self.conditions = conditions
+
+    def __call__(self, key, x, t):
+        rng = PRNG(key)
+        total = jnp.zeros_like(x)
+        for cond in self.conditions:
+            total += cond(rng.split(), x, t)
+        return total
+
+    def tree_flatten(self):
+        return [self.conditions], []
+
+    def tree_unflatten(static, dynamic):
+        [conditions] = dynamic
+        return MixCondFn(*conditions)
