@@ -534,7 +534,7 @@ model_params = model.init_weights(jax.random.PRNGKey(0))
 print('Loading state dict...')
 model_urls = {
     512: '/mnt/models/jax-clip/512x512_diffusion_uncond_finetune_008100.pt',
-    256: '/mnt/models/jax-clip/jul-2021/256x256_diffusion_uncond.pt'
+    256: '/mnt/models/jax-clip/256x256_diffusion_uncond.pt'
 }
 with torch.no_grad():
     model_params = model.load_state_dict(model_params, jaxtorch.pt.load(model_urls[model_config['image_size']]))
