@@ -180,3 +180,38 @@ def get_ddpm_alphas_sigmas(t):
 
 def get_cosine_alphas_sigmas(t):
     return jnp.cos(t * math.pi/2), jnp.sin(t * math.pi/2)
+
+# Common nn modules.
+
+
+class SkipBlock(nn.Module):
+    def __init__(self, main, skip=None):
+        super().__init__()
+        self.main = nn.Sequential(*main)
+        self.skip = skip if skip else nn.Identity()
+
+    def forward(self, cx, input):
+        return jnp.concatenate([self.main(cx, input), self.skip(cx, input)], axis=1)
+
+
+class FourierFeatures(nn.Module):
+    def __init__(self, in_features, out_features, std=1.):
+        super().__init__()
+        assert out_features % 2 == 0
+        self.weight = init.normal(out_features // 2, in_features, stddev=std)
+
+    def forward(self, cx, input):
+        f = 2 * math.pi * input @ cx[self.weight].transpose()
+        return jnp.concatenate([f.cos(), f.sin()], axis=-1)
+
+
+class AvgPool2d(nn.Module):
+    def forward(self, cx, x):
+        [n, c, h, w] = x.shape
+        x = x.reshape([n, c, h//2, 2, w//2, 2])
+        x = x.mean((3, 5))
+        return x
+
+
+def expand_to_planes(input, shape):
+    return input[..., None, None].broadcast_to(list(input.shape) + [shape[2], shape[3]])
