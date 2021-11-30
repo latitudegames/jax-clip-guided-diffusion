@@ -885,9 +885,9 @@ clip_size = 224
 normalize = Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                       std=[0.26862954, 0.26130258, 0.27577711])
 
-image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/models/clipit/ViT-B/32.pt')
+image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/models/clipit/ViT-B-32.pt')
 vit32 = Perceptor(image_fn, text_fn, clip_params)
-image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/models/clipit/ViT-B/16.pt')
+image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/models/clipit/ViT-B-16.pt')
 vit16 = Perceptor(image_fn, text_fn, clip_params)
 
 # Run Configuration
