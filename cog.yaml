@@ -3,7 +3,7 @@
 
 build:
   # set to true if your model requires a GPU
-  gpu: false
+  gpu: true
 
   # a list of ubuntu apt packages to install
   system_packages:
@@ -11,11 +11,14 @@ build:
     # - "libglib2.0-0"
 
   # python version in the form '3.8' or '3.8.12'
-  python_version: "3.8"
+  python_version: "3.7"
 
   # a list of packages in the format <package-name>==<version>
   python_packages:
-    # - "numpy==1.19.4"
+    - "dm-haiku"
+    - "cbor2"
+    - "ftfy"
+    - "einops"
     # - "torch==1.8.0"
     # - "torchvision==0.9.0"
 
