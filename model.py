@@ -34,6 +34,16 @@ devices = jax.devices()
 n_devices = len(devices)
 print('Using device:', devices)
 
+# Setup symlinks for models
+os.symlink('/mnt/models/jax-clip/256x256_diffusion_uncond.pt', os.path.expanduser('models/256x256_diffusion_uncond.pt'))
+os.symlink('/mnt/models/jax-clip/512x512_diffusion_uncond_finetune_008100.pt', os.path.expanduser('models/512x512_diffusion_uncond_finetune_008100.pt'))
+os.symlink('/mnt/models/jax-clip/jpeg-classifier-72.pt', os.path.expanduser('models/jpeg-classifier-72.pt'))
+os.symlink('/mnt/models/jax-clip/jpeg-db-oi-614.pt', os.path.expanduser('models/jpeg-db-oi-614.pt'))
+os.symlink('/mnt/models/jax-clip/secondary_model_imagenet.pth', os.path.expanduser('models/secondary_model_imagenet.pth'))
+os.symlink('/mnt/models/jax-clip/secondary_model_imagenet_2.pth', os.path.expanduser('models/secondary_model_imagenet_2.pth'))
+os.symlink('/mnt/models/clipit/ViT-B-16.pt', os.path.expanduser('models/ViT-B-16.pt'))
+os.symlink('/mnt/models/clipit/ViT-B-32.pt', os.path.expanduser('models/ViT-B-32.pt'))
+
 # Define necessary functions
 
 
