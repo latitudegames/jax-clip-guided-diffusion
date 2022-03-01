@@ -985,6 +985,8 @@ def proc_init_image(init_image):
 def run():
     jaxDiffusionParser = argparse.ArgumentParser(
         description='Image generation using JAX + CLIP Guided Diffusion')
+    jaxDiffusionParser.add_argument(
+        "--prompt", type=str, help="Text Prompt for Image Generation", default="waters of the death tarot card by greg rutkowski", dest='prompt')
     if seed is None:
         local_seed = int(time.time())
     else:
