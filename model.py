@@ -22,6 +22,7 @@ import time
 import io
 import math
 import argparse
+import boto3
 import sys
 sys.path.append('./CLIP_JAX')
 sys.path.append('./jax-guided-diffusion')
