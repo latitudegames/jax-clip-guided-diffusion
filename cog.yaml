@@ -1,14 +1,15 @@
 # Configuration for Cog ⚙️
 # Reference: https://github.com/replicate/cog/blob/main/docs/yaml.md
-
+# The name given to built Docker images. If you want to push to a registry, this should also include the registry name.
+image: "latitudetech/jax-clip-gd-v2.3"
 build:
   # set to true if your model requires a GPU
   gpu: true
 
   # a list of ubuntu apt packages to install
-  system_packages:
-    # - "libgl1-mesa-glx"
-    # - "libglib2.0-0"
+  # system_packages:
+  # - "libgl1-mesa-glx"
+  # - "libglib2.0-0"
 
   # python version in the form '3.8' or '3.8.12'
   python_version: "3.7"
