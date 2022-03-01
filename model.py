@@ -1,34 +1,31 @@
+import torch
+import torch.utils.data
+from torchvision.transforms import functional as TF
+from torchvision import datasets, transforms, utils
+from lib.util import pil_from_tensor, pil_to_tensor
+from lib import util
+from lib.script_util import create_model_and_diffusion, model_and_diffusion_defaults
+import clip_jax
+from jaxtorch import PRNG, Context, Module, nn, init
+import jaxtorch
+import jax.numpy as jnp
+import jax
+import numpy as np
+import requests
+from PIL import Image
+import subprocess
+from dataclasses import dataclass
+from functools import partial
+import functools
+import os
+import time
+import io
+import math
+import argparse
 import sys
 sys.path.append('./CLIP_JAX')
 sys.path.append('./jax-guided-diffusion')
 
-import math
-import io
-import time
-import os
-import functools
-from functools import partial
-from dataclasses import dataclass
-import subprocess
-from PIL import Image
-import requests
-
-import numpy as np
-import jax
-import jax.numpy as jnp
-import jaxtorch
-from jaxtorch import PRNG, Context, Module, nn, init
-
-import clip_jax
-
-from lib.script_util import create_model_and_diffusion, model_and_diffusion_defaults
-from lib import util
-from lib.util import pil_from_tensor, pil_to_tensor
-
-from torchvision import datasets, transforms, utils
-from torchvision.transforms import functional as TF
-import torch.utils.data
-import torch
 
 devices = jax.devices()
 n_devices = len(devices)
@@ -55,12 +52,13 @@ def wget_file(url, out):
         output = cpe.output
         print("Ignoring non-zero exit: ", output)
 
+
 def fetch_model(url_or_path):
     basename = os.path.basename(url_or_path)
     if os.path.exists(basename):
         return basename
     else:
-        wget_file(url_or_path,basename)
+        wget_file(url_or_path, basename)
         return basename
 
 
@@ -360,11 +358,13 @@ class SecondaryDiffusionImageNet2(nn.Module):
 
 secondary1_model = SecondaryDiffusionImageNet()
 secondary1_params = secondary1_model.init_weights(jax.random.PRNGKey(0))
-secondary1_params = jaxtorch.pt.load('/mnt/models/jax-clip/secondary_model_imagenet.pth')
+secondary1_params = jaxtorch.pt.load(
+    '/mnt/models/jax-clip/secondary_model_imagenet.pth')
 
 secondary2_model = SecondaryDiffusionImageNet2()
 secondary2_params = secondary2_model.init_weights(jax.random.PRNGKey(0))
-secondary2_params = jaxtorch.pt.load('/mnt/models/jax-clip/secondary_model_imagenet_2.pth')
+secondary2_params = jaxtorch.pt.load(
+    '/mnt/models/jax-clip/secondary_model_imagenet_2.pth')
 
 # Anti-JPEG model
 
@@ -448,7 +448,8 @@ class JPEGModel(nn.Module):
 
 jpeg_model = JPEGModel()
 jpeg_params = jpeg_model.init_weights(jax.random.PRNGKey(0))
-jpeg_params = jaxtorch.pt.load('/mnt/models/jax-clip/jpeg-db-oi-614.pt')['params_ema']
+jpeg_params = jaxtorch.pt.load(
+    '/mnt/models/jax-clip/jpeg-db-oi-614.pt')['params_ema']
 
 # Secondary Anti-JPEG Classifier
 
@@ -537,7 +538,8 @@ model_urls = {
     256: '/mnt/models/jax-clip/256x256_diffusion_uncond.pt'
 }
 with torch.no_grad():
-    model_params = model.load_state_dict(model_params, jaxtorch.pt.load(model_urls[model_config['image_size']]))
+    model_params = model.load_state_dict(
+        model_params, jaxtorch.pt.load(model_urls[model_config['image_size']]))
 
 # Define combinators.
 
@@ -885,9 +887,11 @@ clip_size = 224
 normalize = Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
                       std=[0.26862954, 0.26130258, 0.27577711])
 
-image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/models/clipit/ViT-B-32.pt')
+image_fn, text_fn, clip_params, _ = clip_jax.load(
+    '/mnt/models/clipit/ViT-B-32.pt')
 vit32 = Perceptor(image_fn, text_fn, clip_params)
-image_fn, text_fn, clip_params, _ = clip_jax.load('/mnt/models/clipit/ViT-B-16.pt')
+image_fn, text_fn, clip_params, _ = clip_jax.load(
+    '/mnt/models/clipit/ViT-B-16.pt')
 vit16 = Perceptor(image_fn, text_fn, clip_params)
 
 # Run Configuration
@@ -1022,7 +1026,6 @@ def run():
                 # images = jnp.concatenate([images, probs],axis=0)
                 images = torch.tensor(np.array(images))
 
-
         # Save samples
         os.makedirs('samples', exist_ok=True)
         for k in range(batch_size):
@@ -1030,7 +1033,6 @@ def run():
             dname = f'samples/{timestring}_{k}_{this_title}.png'
             pil_image = TF.to_pil_image(images[k])
             pil_image.save(dname)
-
 
 
 try:
