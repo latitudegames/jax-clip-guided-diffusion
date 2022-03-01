@@ -992,6 +992,7 @@ def run():
                                     help="Output file uuid", dest='output')
     jaxDiffusionParser.add_argument("-bn", "--bucket_name",
                                     help="S3 Bucket Name to upload to", dest='bucket_name')
+    args = jaxDiffusionParser.parse_args()
     if seed is None:
         local_seed = int(time.time())
     else:
