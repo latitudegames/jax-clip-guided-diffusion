@@ -26,6 +26,7 @@ import boto3
 import sys
 sys.path.append('./CLIP_JAX')
 sys.path.append('./jax-guided-diffusion')
+s3 = boto3.resource('s3')
 
 
 devices = jax.devices()
