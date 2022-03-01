@@ -985,6 +985,7 @@ def proc_init_image(init_image):
 
 @torch.no_grad()
 def run():
+    global title
     jaxDiffusionParser = argparse.ArgumentParser(
         description='Image generation using JAX + CLIP Guided Diffusion')
     jaxDiffusionParser.add_argument(
@@ -995,6 +996,9 @@ def run():
                                     help="S3 Bucket Name to upload to", dest='bucket_name')
     args = jaxDiffusionParser.parse_args()
     bucket_root = f"https://{args.bucket_name}.s3.us-east-2.amazonaws.com/"
+
+    if args.prompt is not None:
+        title = args.prompt
 
     if seed is None:
         local_seed = int(time.time())
