@@ -987,6 +987,8 @@ def run():
         description='Image generation using JAX + CLIP Guided Diffusion')
     jaxDiffusionParser.add_argument(
         "--prompt", type=str, help="Text Prompt for Image Generation", default="waters of the death tarot card by greg rutkowski", dest='prompt')
+    jaxDiffusionParser.add_argument("-bn", "--bucket_name",
+                                    help="S3 Bucket Name to upload to", dest='bucket_name')
     if seed is None:
         local_seed = int(time.time())
     else:
