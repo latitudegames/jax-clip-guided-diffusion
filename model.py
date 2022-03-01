@@ -994,6 +994,8 @@ def run():
     jaxDiffusionParser.add_argument("-bn", "--bucket_name",
                                     help="S3 Bucket Name to upload to", dest='bucket_name')
     args = jaxDiffusionParser.parse_args()
+    bucket_root = f"https://{args.bucket_name}.s3.us-east-2.amazonaws.com/"
+
     if seed is None:
         local_seed = int(time.time())
     else:
