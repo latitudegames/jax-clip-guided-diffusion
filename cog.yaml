@@ -19,6 +19,7 @@ build:
     - "cbor2===5.4.2"
     - "ftfy===6.0.3"
     - "einops===0.3.2"
+    - "boto3===1.21.9"
 
   # commands run after the enviroment is setup
   run:
