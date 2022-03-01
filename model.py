@@ -983,6 +983,8 @@ def proc_init_image(init_image):
 
 @torch.no_grad()
 def run():
+    jaxDiffusionParser = argparse.ArgumentParser(
+        description='Image generation using JAX + CLIP Guided Diffusion')
     if seed is None:
         local_seed = int(time.time())
     else:
