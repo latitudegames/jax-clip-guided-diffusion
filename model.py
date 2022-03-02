@@ -986,6 +986,7 @@ def proc_init_image(init_image):
 @torch.no_grad()
 def run():
     global title
+    global cond_fn
     jaxDiffusionParser = argparse.ArgumentParser(
         description='Image generation using JAX + CLIP Guided Diffusion')
     jaxDiffusionParser.add_argument(
@@ -999,6 +1000,16 @@ def run():
 
     if args.prompt is not None:
         title = args.prompt
+        cond_fn = CondFns(MainCondFn(cond_model, [
+            CondCLIP(vit32.embed_text(title), clip_guidance_scale,
+                     vit32, make_cutouts, cut_batches),
+            CondCLIP(vit16.embed_text(title), clip_guidance_scale,
+                     vit16, make_cutouts, cut_batches),
+            # CondTV(tv_scale),
+            # CondMSE(target, 256*256*3),
+            CondSat(sat_scale),
+        ], use='pred'),
+            jpeg_classifier_fn)
 
     if seed is None:
         local_seed = int(time.time())
