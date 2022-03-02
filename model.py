@@ -1064,8 +1064,8 @@ def run():
             if args.bucket_name is not None:
                 outfile_bytes = open(dname, 'rb')
                 s3.Bucket(args.bucket_name).put_object(
-                    Key=f'{args.output}-{k}.png', Body=outfile_bytes)
-                print(f'Added to S3 {bucket_root}{args.output}-{k}.png')
+                    Key=f'{args.output}-{k + 1}.png', Body=outfile_bytes)
+                print(f'Added to S3 {bucket_root}{args.output + 1}-{k}.png')
 
 
 try:
