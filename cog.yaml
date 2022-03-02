@@ -28,7 +28,7 @@ build:
     - git clone https://github.com/kingoflolz/CLIP_JAX src/CLIP_JAX && cd src/CLIP_JAX && pip install -r requirements.txt && cd ../.. && mv src/CLIP_JAX/clip_jax src/clip_jax
     - pip install jax==0.2.25 # TODO @seang: CLIP_JAX is targetting jax@latest which isn't compatible with jaxlib-0.1.71 - fork and lock versions?
     - git clone https://github.com/nshepperd/jax-guided-diffusion -b v2 src/jax-guided-diffusion && mv src/jax-guided-diffusion/* src
-    - git clone https://github.com/latitudegames/jax-clip-guided-diffusion src/cog && cd src/cog && git checkout 001b6affca95635377f91b8b47aff908bdb2a4f1 && cd ../.. && mv src/cog/* src
+    - git clone https://github.com/latitudegames/jax-clip-guided-diffusion src/cog && cd src/cog && git checkout 136513f6307ded67bb99224f17236ce37598445d && cd ../.. && mv src/cog/* src
     - chmod +x src/main.sh
 # predict.py defines how predictions are run on your model
 predict: "predict.py:Predictor"
