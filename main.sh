@@ -1,5 +1,5 @@
 #!/bin/bash
-# This is a dirty hack to let us pass arbitrary arguments to clipit.py as a single string.
+# This is a dirty hack to let us pass arbitrary arguments to model.py as a single string.
 
 # The user of this file will call it like this
 # CMD ["main.sh", "{ \"prompt\": \"Big Al's best friend\", \"iterations\": 300}"]
