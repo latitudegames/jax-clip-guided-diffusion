@@ -900,7 +900,7 @@ vit16 = Perceptor(image_fn, text_fn, clip_params)
 
 image_size = (640, 512)
 
-batch_size = 2
+batch_size = 1
 title = "waters of the death tarot card by greg rutkowski"
 
 # Note: with two perceptors, combined guidance scale is 2x because they are added together.
@@ -915,7 +915,7 @@ cut_pow = 1.0
 cut_batches = 4
 make_cutouts = MakeCutouts(clip_size, cutn, cut_pow=cut_pow)
 
-n_batches = 4
+n_batches = 1
 init_image = None
 skip_timesteps = 0
 seed = None  # if None, uses the current time in seconds.
