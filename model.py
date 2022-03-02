@@ -1050,7 +1050,7 @@ def run():
             dname = f'samples/{timestring}_{k}_{this_title}.png'
             pil_image = TF.to_pil_image(images[k])
             pil_image.save(dname)
-            if args.bucket_name is None:
+            if args.bucket_name is not None:
                 outfile_bytes = open(dname, 'rb')
                 s3.Bucket(args.bucket_name).put_object(
                     Key=f'{args.output}-{k}.png', Body=outfile_bytes)
