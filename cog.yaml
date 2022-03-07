@@ -33,5 +33,6 @@ build:
     - chmod +x src/main.sh
     # can use CompVis/taming-transformers when https://github.com/CompVis/taming-transformers/pull/81 is merged
     - pip install git+https://github.com/Latitude-Archives/taming-transformers.git@1c4cd383f74c3747eada97dfe808732ad84e2a2b
+    - mv src/ResizeRight/* src
 # predict.py defines how predictions are run on your model
 predict: "predict.py:Predictor"
