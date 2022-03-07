@@ -33,6 +33,9 @@ devices = jax.devices()
 n_devices = len(devices)
 print('Using device:', devices)
 
+# Symlink PVC to target directories for models and weights
+os.symlink('/mnt/models/clipit', os.path.expanduser('~/.cache/clip'))
+
 # Define necessary functions
 
 
