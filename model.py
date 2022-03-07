@@ -34,8 +34,17 @@ n_devices = len(devices)
 print('Using device:', devices)
 
 # Symlink PVC to target directories for models and weights
+# CLIP
 os.symlink('/mnt/models/clipit', os.path.expanduser('~/.cache/clip'))
-
+# TamingTransformers
+os.mkdir(os.path.expanduser('~/.cache/taming'))
+os.mkdir(os.path.expanduser('~/.cache/taming/modules/'))
+os.mkdir(os.path.expanduser('~/.cache/taming/modules/autoencoder'))
+os.mkdir(os.path.expanduser('~/.cache/taming/modules/autoencoder/lpips'))
+os.symlink('/mnt/models/vgg16-397923af.pth', os.path.expanduser(
+    '~/.cache/taming/modules/autoencoder/lpips/vgg16-397923af.pth'))
+os.symlink('/mnt/models/vgg.pth', os.path.expanduser(
+    '~/.cache/taming/modules/autoencoder/lpips/vgg.pth'))
 # Define necessary functions
 
 
